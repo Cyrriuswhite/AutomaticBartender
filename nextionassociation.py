@@ -77,6 +77,26 @@ nextionAssociation_list = [
         "type":"russianRoulette",
 		"page": 1,
 		"component_id": 6
+	},
+	# Page 2
+	{
+		"name": "StatPage",
+        "type":"statShow",
+		"page": 2,
+		"component_id": 3
+	},
+	{
+		"name": "CleanUp",
+        "type":"cleanUp",
+		"page": 2,
+		"component_id": 6
+	},
+	# Page 8
+	{
+		"name": "reload",
+        "type":"statShow",
+		"page": 8,
+		"component_id": 3
 	}
 ]
 

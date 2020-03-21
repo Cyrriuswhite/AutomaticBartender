@@ -8,6 +8,7 @@ from neopixel import *
 from random import *
 import traceback 
 import threading
+import subprocess
 from drinks import drink_list, drink_options
 from nextionassociation import nextionAssociation_list
 
@@ -161,20 +162,29 @@ class Bartender():
         return(russianRoulette)
 
     def showStats(self):
-		cmd = "hostname -I | cut -d\' \' -f1"
-		IP = subprocess.check_output(cmd, shell = True )
-		cmd = "top -bn1 | grep load | awk '{printf \"CPU Load: %.2f\", $(NF-2)}'"
-		CPU = subprocess.check_output(cmd, shell = True )
-		cmd = "free -m | awk 'NR==2{printf \"Mem: %s/%sMB %.2f%%\", $3,$2,$3*100/$2 }'"
-		MemUsage = subprocess.check_output(cmd, shell = True )
-		cmd = "df -h | awk '$NF==\"/\"{printf \"Disk: %d/%dGB %s\", $3,$2,$5}'"
-		Disk = subprocess.check_output(cmd, shell = True )
-		
-		
-	
-	
+        cmd = "hostname -I | cut -d\' \' -f1"
+        IP = subprocess.check_output(cmd, shell = True )
+        cmd = "top -bn1 | grep load | awk '{printf \" %.2f\", $(NF-2)}'"
+        CPU = subprocess.check_output(cmd, shell = True )
+        cmd = "free -m | awk 'NR==2{printf \"%s/%sMB %.2f%%\", $3,$2,$3*100/$2 }'"
+        MemUsage = subprocess.check_output(cmd, shell = True )
+        cmd = "df -h | awk '$NF==\"/\"{printf \"%d/%dGB %s\", $3,$2,$5}'"
+        Disk = subprocess.check_output(cmd, shell = True )
 
-	
+        print (IP)
+        print (CPU)
+        print(MemUsage)
+        print (Disk)
+        PORT.write("ip.txt=\""+IP+"\""+EOF)
+        PORT.write("cpu.txt=\""+CPU+"\""+EOF)
+        PORT.write("mem.txt=\""+MemUsage+"\""+EOF)
+        PORT.write("disk.txt=\""+Disk+"\""+EOF)
+        
+        
+    
+    
+
+    
     def drinkSelection(self, Command):
         if (Command.type == "drink"):
             self.makeDrink(Command.name, Command.attributes["ingredients"])
@@ -244,6 +254,8 @@ class Bartender():
     def processCommand(self,nextionCommand):
         nex_page=ord(nextionCommand[1])
         nex_component_id=ord(nextionCommand[2])
+        print(nex_page)
+        print(nex_component_id)
         command_name=""
         command_type=""
         ###Configure the button press
@@ -263,6 +275,10 @@ class Bartender():
         elif(command_type == "russianRoulette"):
             randomShooter=self.russianRoulette()
             self.makeDrink(randomShooter.name,randomShooter.attributes["ingredients"])
+        elif(command_type=="cleanUp"):
+            self.clean()
+        elif(command_type == "statShow"):
+            self.showStats()
 
 
 
@@ -301,5 +317,7 @@ class Bartender():
 drink_opts = []
 for d in drink_list:
     drink_opts.append(Command('drink', d["name"], {"ingredients": d["ingredients"]}))
+
 bartender = Bartender()
+#bartender.makeDrink("gin",{"gin":50})
 bartender.run()
