@@ -160,6 +160,21 @@ class Bartender():
             russianRoulette=Command('drink', d["name"], {"ingredients": d["ingredients"]})
         return(russianRoulette)
 
+    def showStats(self):
+		cmd = "hostname -I | cut -d\' \' -f1"
+		IP = subprocess.check_output(cmd, shell = True )
+		cmd = "top -bn1 | grep load | awk '{printf \"CPU Load: %.2f\", $(NF-2)}'"
+		CPU = subprocess.check_output(cmd, shell = True )
+		cmd = "free -m | awk 'NR==2{printf \"Mem: %s/%sMB %.2f%%\", $3,$2,$3*100/$2 }'"
+		MemUsage = subprocess.check_output(cmd, shell = True )
+		cmd = "df -h | awk '$NF==\"/\"{printf \"Disk: %d/%dGB %s\", $3,$2,$5}'"
+		Disk = subprocess.check_output(cmd, shell = True )
+		
+		
+	
+	
+
+	
     def drinkSelection(self, Command):
         if (Command.type == "drink"):
             self.makeDrink(Command.name, Command.attributes["ingredients"])
@@ -244,7 +259,7 @@ class Bartender():
                     
         elif(command_type == "shot"):
             bartender.makeDrink(command_name,{command_name:50})       
-            
+
         elif(command_type == "russianRoulette"):
             randomShooter=self.russianRoulette()
             self.makeDrink(randomShooter.name,randomShooter.attributes["ingredients"])
@@ -287,5 +302,4 @@ drink_opts = []
 for d in drink_list:
     drink_opts.append(Command('drink', d["name"], {"ingredients": d["ingredients"]}))
 bartender = Bartender()
-bartender.makeDrink("gin",{"gin":50})
 bartender.run()
