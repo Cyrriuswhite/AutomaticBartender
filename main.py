@@ -14,9 +14,6 @@ from nextionassociation import nextionAssociation_list
 
 GPIO.setmode(GPIO.BCM)
 
-PORT=serial.Serial("/dev/ttyAMA0",baudrate=9600, timeout=1.0)
-EOF = "\xff\xff\xff"
-
 LED_COUNT=37
 LED_PIN=18
 LED_FREQ_HZ=800000
@@ -25,16 +22,14 @@ LED_INVERT=False
 LED_BRIGHTNESS =255
 LED_CHANNEL=0
 
-#FLOW_RATE = 60.0/1500.0
-FLOW_RATE = 60.0/1500.0
+GLASS_DETECTION_PIN = 13
 
-#################################################################
-# Variable: pumpConf 
-#
-#
-#   
-#
-#
+NORMAL_SIZE = 60.0/500.0
+TEST_SIZE = 60.0/1500.0
+
+PORT=serial.Serial("/dev/ttyAMA0",baudrate=9600, timeout=1.0)
+EOF = "\xff\xff\xff"
+GPIO.setup(GLASS_DETECTION_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
 
 class Command():
@@ -52,10 +47,6 @@ class Bartender():
         for pump in self.pumpConf.keys():
             GPIO.setup(self.pumpConf[pump]["pin"], GPIO.OUT, initial=GPIO.HIGH)
 
-        #Build drink list
-        #self.drink_opts = []
-        #for d in drink_list:
-        #    self.drink_opts.append(Command('drink', d["name"], {"ingredients": d["ingredients"]}))
 
         #SetUp the LED strip
         self.led = Adafruit_NeoPixel(LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL)
@@ -66,6 +57,18 @@ class Bartender():
 
         #SetUp the Nextion display
         PORT.write("page Main"+EOF)
+        PORT.write("Security.ON.pco=19785"+EOF)
+        PORT.write("Security.OFF.pco=65535"+EOF)
+        PORT.write("DrinkConf.sizeNormal.pco=19785"+EOF)
+        PORT.write("DrinkConf.sizeTest.pco=65535"+EOF)
+        PORT.write("DrinkConf.rapport3p1.pco=19785"+EOF)
+        PORT.write("DrinkConf.rapport2p1.pco=65535"+EOF)
+        
+        #SetUp glass detection 
+        self.glassDetectPin = GLASS_DETECTION_PIN
+        self.glassDetectIsActivated = True
+        #SetUp default glass size
+        self.drinkSize = TEST_SIZE
 
     @staticmethod    
     def loadPumpConf():
@@ -76,13 +79,17 @@ class Bartender():
         with open("pump.json", "w") as jsonFile:
             json.dump(pumpConf, jsonFile)
     
+    #def glassDetection(self):
+	#	GPIO.add_event_detect(self.glassDetectPin, GPIO.FALLING, callback=self.left_btn, bouncetime=LEFT_PIN_BOUNCE)
+
     def pour(self, pin, waitTime):
         GPIO.output(pin, GPIO.LOW)
         time.sleep(waitTime)
         GPIO.output(pin, GPIO.HIGH)
 
-    def progressBar(self, waitTime):
+    def progressBar(self, waitTime, name):
         PORT.write("page LoadingBar"+EOF)
+        PORT.write("name.txt=\"Serving "+name+"\""+EOF)
         interval = waitTime / 100.0
         for x in range(1, 101):
             PORT.write("loadingBar.val="+str(x)+EOF)
@@ -125,6 +132,7 @@ class Bartender():
         self.led.show() 
 
     def clean(self):
+        
         waitTime = 20
         pumpThreads = []
 
@@ -141,7 +149,7 @@ class Bartender():
             thread.start()
 
         # start the progress bar
-        self.progressBar(waitTime)
+        self.progressBar(waitTime, "Cleaning")
 
         # wait for threads to finish
         for thread in pumpThreads:
@@ -180,32 +188,48 @@ class Bartender():
         PORT.write("mem.txt=\""+MemUsage+"\""+EOF)
         PORT.write("disk.txt=\""+Disk+"\""+EOF)
         
-        
+    def detectSettings(self,command_name):
+        if (command_name=="GlassDetectActivate"):
+            self.glassDetectIsActivated = True
+        elif(command_name=="GlassDetectDeactivate"):
+            self.glassDetectIsActivated = False
     
+    def sizeSettings(self,command_name):
+        
+        if (command_name=="NormalSize"):
+            self.drinkSize= NORMAL_SIZE
+        elif(command_name=="TestSize"):
+            self.drinkSize = TEST_SIZE
     
 
     
-    def drinkSelection(self, Command):
-        if (Command.type == "drink"):
-            self.makeDrink(Command.name, Command.attributes["ingredients"])
-            return True
-        elif(Command.type == "russianRoulette"):
-            randomShooter=self.russianRoulette()
-            self.makeDrink(randomShooter.name,randomShooter.attributes["ingredients"])
-            return True
-        elif(Command.type == "pump_selection"):
-            self.pumpConf[Command.attributes["key"]]["value"] = Command.attributes["value"]
-            Bartender.writePumpConfiguration(self.pumpConf)
-            return True
-        elif(Command.type == "clean"):
-            self.clean()
-            return True
-        elif(Command.type == "showStats"):
-            self.showStats()
-            return True
-        return False
+   # def drinkSelection(self, Command):
+   #     if (Command.type == "drink"):
+   #         self.makeDrink(Command.name, Command.attributes["ingredients"])
+   #         return True
+   #     elif(Command.type == "russianRoulette"):
+   #         randomShooter=self.russianRoulette()
+   #         self.makeDrink(randomShooter.name,randomShooter.attributes["ingredients"])
+   #         return True
+   #     elif(Command.type == "pump_selection"):
+   #         self.pumpConf[Command.attributes["key"]]["value"] = Command.attributes["value"]
+   #         Bartender.writePumpConfiguration(self.pumpConf)
+   #         return True
+   #     elif(Command.type == "clean"):
+   #         self.clean()
+   #         return True
+   #     elif(Command.type == "showStats"):
+   #         self.showStats()
+   #         return True
+   #     return False
 
     def makeDrink(self, drink, ingredients):
+        if (GPIO.input(self.glassDetectPin) and self.glassDetectIsActivated ==True):
+            PORT.write("t0.pco=63488"+EOF)
+            print ("No glass detected")
+            time.sleep(2);
+            PORT.write("t0.pco=0"+EOF)
+            return
         # cancel any command made while serving
         self.running = True
         print(ingredients.keys())
@@ -219,7 +243,7 @@ class Bartender():
         for ing in ingredients.keys():
             for pump in self.pumpConf.keys():
                 if ing == self.pumpConf[pump]["value"]:
-                    waitTime = ingredients[ing] * FLOW_RATE
+                    waitTime = ingredients[ing] * self.drinkSize
                     print (waitTime)
                     if (waitTime > maxTime):
                         maxTime = waitTime
@@ -231,7 +255,7 @@ class Bartender():
             thread.start()
 
         # start the progress bar
-        self.progressBar(maxTime)
+        self.progressBar(maxTime,drink)
 
         # wait for threads to finish
         for thread in pumpThreads:
@@ -266,7 +290,6 @@ class Bartender():
         if(command_type=="drink"):
             for d in drink_opts:
                 if (d.name==command_name):
-                    print "hello"
                     self.makeDrink(d.name,d.attributes["ingredients"])
                     
         elif(command_type == "shot"):
@@ -279,6 +302,15 @@ class Bartender():
             self.clean()
         elif(command_type == "statShow"):
             self.showStats()
+        elif(command_type == "glassDetect"):
+           self.detectSettings(command_name)
+        elif(command_type == "sizeOfDrink"):
+            self.sizeSettings(command_name)
+            return
+        elif(command_type == "ratio"):
+            return
+            
+
 
 
 

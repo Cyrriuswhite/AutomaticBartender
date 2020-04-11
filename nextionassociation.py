@@ -91,11 +91,51 @@ nextionAssociation_list = [
 		"page": 2,
 		"component_id": 6
 	},
-	# Page 8
+	# Page 4
+	{
+		"name": "NormalSize",
+        "type":"sizeOfDrink",
+		"page": 4,
+		"component_id": 3
+	},
+	{
+		"name": "TestSize",
+        "type":"sizeOfDrink",
+		"page": 4,
+		"component_id": 4
+	},
+		{
+		"name": "Light",
+        "type":"ratio",
+		"page": 4,
+		"component_id": 5 
+	},
+	{
+		"name": "Strong",
+        "type":"ratio",
+		"page": 4,
+		"component_id": 6
+	},
+
+	# Page 6
+	{
+		"name": "GlassDetectActivate",
+        "type":"glassDetect",
+		"page": 6,
+		"component_id": 5
+	},
+	{
+		"name": "GlassDetectDeactivate",
+        "type":"glassDetect",
+		"page": 6,
+		"component_id": 6
+	},
+
+	# Page 7
 	{
 		"name": "reload",
         "type":"statShow",
-		"page": 8,
+		"page": 7,
 		"component_id": 3
 	}
 ]
