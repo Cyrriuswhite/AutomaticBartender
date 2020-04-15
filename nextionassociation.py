@@ -140,3 +140,13 @@ nextionAssociation_list = [
 	}
 ]
 
+alexaAssociation_list = [
+	{"name": "Rum & Coke", "value": "rum and coke"},
+	{"name": "Rum & Sprite", "value": "rum sprite"},
+	{"name": "Jack & Coke", "value": "jack and coke"},
+	{"name": "Jack & Sprite", "value": "jack sprite"},
+	{"name": "Vodka & Sprite", "value": "vodka sprite"},
+	{"name": "Gin & Sprite", "value": "gin sprite"},
+	{"name": "Long Island", "value": "long island"}
+]
+

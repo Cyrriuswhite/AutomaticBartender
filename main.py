@@ -9,9 +9,12 @@ from random import *
 import traceback 
 import threading
 import subprocess
+import logging
+import os
 from drinks import drink_list, drink_options
-from nextionassociation import nextionAssociation_list
-
+from nextionassociation import nextionAssociation_list,alexaAssociation_list
+from flask import Flask, render_template, url_for, redirect, request
+from flask_ask import Ask, session, question, statement
 GPIO.setmode(GPIO.BCM)
 
 LED_COUNT=37
@@ -25,11 +28,82 @@ LED_CHANNEL=0
 GLASS_DETECTION_PIN = 13
 
 NORMAL_SIZE = 60.0/500.0
-TEST_SIZE = 60.0/1500.0
+TEST_SIZE = 60.0/1000.0
 
 PORT=serial.Serial("/dev/ttyAMA0",baudrate=9600, timeout=1.0)
 EOF = "\xff\xff\xff"
 GPIO.setup(GLASS_DETECTION_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+#Setting Web server
+def thread_webApp():
+    app = Flask(__name__)
+    @app.route('/')
+    def index():
+        return render_template('interface.html')
+    @app.route('/Rum_&_Coke')
+    @app.route('/Rum_&_Sprite')
+    @app.route('/Jack_&_Coke')
+    @app.route('/Jack_&_Sprite')
+    @app.route('/Vodka_&_Sprite')
+    @app.route('/Gin_&_Sprite')
+    @app.route('/Long_Island')
+    @app.route('/TEMP')
+    def get_drink():
+        route = str(request.url_rule)
+        drinkName=route.replace('_',' ').replace('/','')
+        print(drinkName)
+        for d in drink_opts:
+            if (d.name==drinkName):
+                bartender.makeDrink(d.name,d.attributes["ingredients"])
+        return redirect(url_for('index'))
+
+    app.run(debug=True, use_reloader=False, host='0.0.0.0')
+
+
+#Setting the Alexa server
+def thread_alexa():
+    alexa = Flask(__name__)
+    ask = Ask(alexa, "/")
+    logging.getLogger('flask_ask').setLevel(logging.DEBUG)
+
+    @ask.launch
+    def launch():
+        speech_text = 'Welcome to your Automatic Bartender'
+        return question(speech_text).reprompt(speech_text).simple_card(speech_text)
+
+    @ask.intent('ServeDrinkIntent', mapping = {'drink':'drink'})
+    def Gpio_Intent(drink):
+        drinkName=drink
+        for d in alexaAssociation_list:
+            if( d["value"]==drink):
+                drinkName =d["name"]
+        for d in drink_opts:
+                if (d.name==drinkName):
+                    bartender.makeDrink(d.name,d.attributes["ingredients"])
+        return statement(drink+" served")
+    
+    @ask.intent('AMAZON.HelpIntent')
+    def help():
+        speech_text = 'You can say hello to me!'
+        return question(speech_text).reprompt(speech_text).simple_card('HelloWorld', speech_text)
+
+    @ask.session_ended
+    def session_ended():
+        return "{}", 200
+
+    if 'ASK_VERIFY_REQUESTS' in os.environ:
+        verify = str(os.environ.get('ASK_VERIFY_REQUESTS', '')).lower()
+        if verify == 'false':
+            alexa.config['ASK_VERIFY_REQUESTS'] = False
+    alexa.run(debug=True,use_reloader=False,host='0.0.0.0',port=5001)
+
+
+alexa = threading.Thread(name='Alexa',target=thread_alexa)    
+server = threading.Thread(name='Web App',target=thread_webApp)
+server.setDaemon(True)
+alexa.setDaemon(True)
+alexa.start()
+server.start()
 
 
 class Command():
@@ -41,7 +115,7 @@ class Command():
 
 class Bartender():
     def __init__(self):
-
+        print (" * Welcome to the Automatic Bartender")
         #Initialize GPIO pins with pump configuration from JSon file
         self.pumpConf=Bartender.loadPumpConf()
         for pump in self.pumpConf.keys():
@@ -51,6 +125,7 @@ class Bartender():
         #SetUp the LED strip
         self.led = Adafruit_NeoPixel(LED_COUNT, LED_PIN, LED_FREQ_HZ, LED_DMA, LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL)
         self.led.begin()
+
         for i in range(0, LED_COUNT):
             self.led.setPixelColor(i,Color(30,30,30))
             self.led.show()
@@ -79,8 +154,6 @@ class Bartender():
         with open("pump.json", "w") as jsonFile:
             json.dump(pumpConf, jsonFile)
     
-    #def glassDetection(self):
-	#	GPIO.add_event_detect(self.glassDetectPin, GPIO.FALLING, callback=self.left_btn, bouncetime=LEFT_PIN_BOUNCE)
 
     def pour(self, pin, waitTime):
         GPIO.output(pin, GPIO.LOW)
@@ -135,9 +208,6 @@ class Bartender():
         
         waitTime = 20
         pumpThreads = []
-
-        # cancel any button presses while the drink is being made
-        # self.stopInterrupts()
         self.running = True
 
         for pump in self.pumpConf.keys():
@@ -155,10 +225,6 @@ class Bartender():
         for thread in pumpThreads:
             thread.join()
 
-        ######## show the main menu
-        #self.menuContext.showMenu()
-
-        # sleep for a couple seconds to make sure the interrupts don't get triggered
         time.sleep(2)
 
     def russianRoulette(self):
@@ -201,27 +267,6 @@ class Bartender():
         elif(command_name=="TestSize"):
             self.drinkSize = TEST_SIZE
     
-
-    
-   # def drinkSelection(self, Command):
-   #     if (Command.type == "drink"):
-   #         self.makeDrink(Command.name, Command.attributes["ingredients"])
-   #         return True
-   #     elif(Command.type == "russianRoulette"):
-   #         randomShooter=self.russianRoulette()
-   #         self.makeDrink(randomShooter.name,randomShooter.attributes["ingredients"])
-   #         return True
-   #     elif(Command.type == "pump_selection"):
-   #         self.pumpConf[Command.attributes["key"]]["value"] = Command.attributes["value"]
-   #         Bartender.writePumpConfiguration(self.pumpConf)
-   #         return True
-   #     elif(Command.type == "clean"):
-   #         self.clean()
-   #         return True
-   #     elif(Command.type == "showStats"):
-   #         self.showStats()
-   #         return True
-   #     return False
 
     def makeDrink(self, drink, ingredients):
         if (GPIO.input(self.glassDetectPin) and self.glassDetectIsActivated ==True):
@@ -269,6 +314,9 @@ class Bartender():
         # show the ending sequence lights
         self.lightsEndingSequence()
 
+        for i in range(0, LED_COUNT):
+            self.led.setPixelColor(i,Color(30,30,30))
+            self.led.show()
         # sleep for a couple seconds to make sure the interrupts don't get triggered
         time.sleep(1);
         # reenable interrupts
@@ -322,11 +370,9 @@ class Bartender():
             try: 
 
                 while True:
-                    #letter = raw_input(">")
                     nextionCommand=PORT.readline()
                     if (nextionCommand!=''):
                         self.processCommand(nextionCommand)
-                    #time.sleep(0.1)
             except EOFError:
                 while True:
                     time.sleep(0.1)
@@ -341,6 +387,8 @@ class Bartender():
 
 
 
+
+
     
 
 
@@ -351,5 +399,4 @@ for d in drink_list:
     drink_opts.append(Command('drink', d["name"], {"ingredients": d["ingredients"]}))
 
 bartender = Bartender()
-#bartender.makeDrink("gin",{"gin":50})
 bartender.run()
